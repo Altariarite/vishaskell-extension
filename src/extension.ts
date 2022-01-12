@@ -1,3 +1,4 @@
+import { posix } from 'path';
 import * as vscode from 'vscode';
 import { showInputBox } from './basicInputs';
 import { getNonce } from './getNonce';
@@ -13,10 +14,28 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('catCoding.doRefactor', () => {
-			if (CodingPanel.currentPanel) {
-				CodingPanel.currentPanel.doRefactor();
+		// Command #3 - Write and read a file
+		// * shows how to derive a new file-uri from a folder-uri
+		// * shows how to convert a string into a typed array and back
+		vscode.commands.registerCommand('catCoding.writeFile', async function () {
+
+			if (!vscode.workspace.workspaceFolders) {
+				return vscode.window.showInformationMessage('No folder or workspace opened');
 			}
+
+			const writeStr = '1€ is 1.12$ is 0.9£';
+			const writeData = Buffer.from(writeStr, 'utf8');
+
+			const folderUri = vscode.workspace.workspaceFolders[0].uri;
+			const fileUri = folderUri.with({ path: posix.join(folderUri.path, 'out.json') });
+
+			// await vscode.workspace.fs.writeFile(fileUri, writeData);
+
+			const readData = await vscode.workspace.fs.readFile(fileUri);
+			const readStr = Buffer.from(readData).toString('utf8');
+
+			vscode.window.showInformationMessage(readStr);
+			vscode.window.showTextDocument(fileUri);
 		})
 	);
 
@@ -31,6 +50,8 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
+
+
 }
 
 function getWebviewOptions(extensionUri: vscode.Uri): vscode.WebviewOptions {
@@ -43,6 +64,37 @@ function getWebviewOptions(extensionUri: vscode.Uri): vscode.WebviewOptions {
 			vscode.Uri.joinPath(extensionUri, 'media'),
 			vscode.Uri.joinPath(extensionUri, 'out/compiled')]
 	};
+}
+
+async function writeFile(json: JSON) {
+	if (!vscode.workspace.workspaceFolders) {
+		return vscode.window.showInformationMessage('No folder or workspace opened');
+	}
+
+	const writeStr = JSON.stringify(json);
+	const writeData = Buffer.from(writeStr, 'utf8');
+
+	const folderUri = vscode.workspace.workspaceFolders[0].uri;
+	const fileUri = folderUri.with({ path: posix.join(folderUri.path, 'out.json') });
+
+	await vscode.workspace.fs.writeFile(fileUri, writeData);
+}
+
+async function readFile(json: JSON) {
+	if (!vscode.workspace.workspaceFolders) {
+		return vscode.window.showInformationMessage('No folder or workspace opened');
+	}
+	const folderUri = vscode.workspace.workspaceFolders[0].uri;
+	const fileUri = folderUri.with({ path: posix.join(folderUri.path, 'out.json') });
+
+	// await vscode.workspace.fs.writeFile(fileUri, writeData);
+
+	const readData = await vscode.workspace.fs.readFile(fileUri);
+	const readStr = Buffer.from(readData).toString('utf8');
+
+	vscode.window.showInformationMessage(readStr);
+	// vscode.window.showTextDocument(fileUri);
+	return readStr;
 }
 
 /**
@@ -115,12 +167,20 @@ class CodingPanel {
 					case 'alert':
 						vscode.window.showErrorMessage(message.text);
 						return;
-					case 'input': {
-						showInputBox(message.original).then((result) => {
-							
-							this._panel.webview.postMessage({ command: 'input', data: result });
-						});
+					case 'save': {
+						vscode.window.showInformationMessage("Pressed save:" + message.d);
+						writeFile(message.d);
+						return;
 					}
+					case 'load': {
+						vscode.window.showInformationMessage("Pressed Load");
+						readFile(message.d).then(jsonString => {
+							if (jsonString)
+								this._panel.webview.postMessage({ command: 'load', data: JSON.parse(jsonString) })
+						}
+						);
+					}
+
 
 
 
@@ -129,6 +189,8 @@ class CodingPanel {
 			});
 
 	}
+
+
 
 	public doRefactor() {
 		// Send a message to the webview webview.

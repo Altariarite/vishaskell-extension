@@ -3,20 +3,11 @@
   import Input from './Input.svelte';
 
   import * as d3 from 'd3';
-import { dataset_dev } from 'svelte/internal';
+  import { dataset_dev } from 'svelte/internal';
   // change something
   const vscode = acquireVsCodeApi();
 
-  let tree = {
-    name: 'Top Level',
-    children: [
-      {
-        name: 'Level 2: A',
-        children: [{ name: 'Son of A' }, { name: 'Daughter of A' }],
-      },
-      { name: 'Level 2: B' },
-    ],
-  };
+  let tree = ['a', ['b', []]]; // data[0] to access name and data[1] for chile
 
   let selected;
   let value;
@@ -31,7 +22,9 @@ import { dataset_dev } from 'svelte/internal';
     var treemap = d3.tree().size([width, height]);
 
     //  assigns the data to a hierarchy using parent-child relationships
-    var nodes = d3.hierarchy(treeData);
+    var nodes = d3.hierarchy(treeData, (d) =>
+      Array.isArray(d) ? d[1] : undefined
+    );
 
     // maps the node data to the tree layout
     nodes = treemap(nodes);
@@ -104,45 +97,62 @@ import { dataset_dev } from 'svelte/internal';
       })
       .style('text-anchor', 'middle')
       .text(function (d) {
-        return d.data.name;
+        return d.data[0];
       });
 
     node.on('click', function (e, d) {
       console.log(d);
       console.log(d.data);
-      value = d.data.name;
+      value = d.data[0];
       selected = d;
     });
   }
 
   // Handle the message inside the webview
+  function handleSave() {
+    vscode.postMessage({
+      command: 'save',
+      // fill in original value
+      d: tree,
+    });
+  }
+
+  function handleLoad() {
+    vscode.postMessage({
+      command: 'load',
+      // fill in original value
+      d: tree,
+    });
+  }
+
   function handleMessage(event: any) {
     const message = event.data; // The JSON data our extension sent
     console.log('message recved', message);
     switch (message.command) {
-      case 'input':
+      case 'load':
         console.log('svelte recv message: ', message);
         tree = message.data;
-        updateTable(matrix);
-        console.log('matrix', matrix);
+        updateTree(tree);
+        console.log('tree', tree);
         break;
     }
   }
 
   onMount(() => updateTree(tree));
   afterUpdate(() => {
-    selected.data.name = value;
-    updateTree(tree)
-    console.log(tree)
-    })
+    selected.data[0] = value;
+    updateTree(tree);
+    console.log(tree);
+  });
 </script>
 
-<h1>Selected: {selected ? selected.data.name : 'nothing'}</h1>
+<h1>Selected: {selected ? selected.data[0] : 'nothing'}</h1>
 <input bind:value />
-<!-- <svelte:window on:message={handleMessage}/> -->
 
-<button>Load</button>
-<button>Save</button>
+<svelte:window on:message={handleMessage} />
+
+<button on:click={handleLoad}>Load</button>
+<button on:click={handleSave}>Save</button>
 
 <style>
   /* set the CSS */
