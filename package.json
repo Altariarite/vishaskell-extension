@@ -22,7 +22,7 @@
 		"onLanguage:haskell",
 		"onLanguage:literate haskell",
 		"onCommand:catCoding.start",
-		"onCommand:catCoding.doRefactor",
+		"onCommand:catCoding.writeFile",
 		"onCommand:catCoding.refresh",
 		"onCommand:catCoding.sendToWebview",
 		"onWebviewPanel:catCoding"
@@ -33,6 +33,11 @@
 			{
 				"command": "catCoding.start",
 				"title": "Start cat coding session",
+				"category": "Cat Coding"
+			},
+			{
+				"command": "catCoding.writeFile",
+				"title": "write file",
 				"category": "Cat Coding"
 			},
 			{
