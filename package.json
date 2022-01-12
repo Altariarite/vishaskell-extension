@@ -1,0 +1,78 @@
+{
+	"name": "visual-coding",
+	"description": "Visual Coding - A Webview API Sample",
+	"version": "0.0.1",
+	"publisher": "vscode-samples",
+	"private": true,
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Microsoft/vscode-extension-samples"
+	},
+	"engines": {
+		"vscode": "^1.47.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"extensionDependencies": [
+		"justusadam.language-haskell"
+	],
+	"activationEvents": [
+		"onLanguage:haskell",
+		"onLanguage:literate haskell",
+		"onCommand:catCoding.start",
+		"onCommand:catCoding.doRefactor",
+		"onCommand:catCoding.refresh",
+		"onCommand:catCoding.sendToWebview",
+		"onWebviewPanel:catCoding"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "catCoding.start",
+				"title": "Start cat coding session",
+				"category": "Cat Coding"
+			},
+			{
+				"command": "catCoding.refresh",
+				"title": "Refresh Webview",
+				"category": "Cat Coding"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"lint": "eslint . --ext .ts,.tsx",
+		"compile": "webpack --config ./build/node-extension.webpack.config.js",
+		"watch": "concurrently \"rollup -c -w\" \"webpack --watch --config ./build/node-extension.webpack.config.js\"",
+		"package": "webpack --mode production --devtool hidden-source-map --config ./build/node-extension.webpack.config.js",
+		"test-compile": "tsc -p ./"
+	},
+	"devDependencies": {
+		"@rollup/plugin-commonjs": "^21.0.1",
+		"@rollup/plugin-node-resolve": "^13.1.3",
+		"@rollup/plugin-typescript": "^8.3.0",
+		"@tsconfig/svelte": "^3.0.0",
+		"@types/d3": "^7.1.0",
+		"@types/node": "^12.12.0",
+		"@types/vscode": "^1.47.0",
+		"@types/vscode-webview": "^1.57.0",
+		"@typescript-eslint/eslint-plugin": "^4.16.0",
+		"@typescript-eslint/parser": "^4.16.0",
+		"concurrently": "^7.0.0",
+		"d3": "^6.7.0",
+		"eslint": "^7.21.0",
+		"rollup": "^2.38",
+		"rollup-plugin-svelte": "^6.1.1",
+		"rollup-plugin-terser": "^7.0.2",
+		"svelte": "^3.45.0",
+		"svelte-check": "^2.2.12",
+		"svelte-preprocess": "^4.10.1",
+		"ts-loader": "^9.2.6",
+		"typescript": "^4.4.3",
+		"webpack": "^5.65.0",
+		"webpack-cli": "^4.9.1"
+	}
+}
