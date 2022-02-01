@@ -7,10 +7,10 @@
   // change something
   const vscode = acquireVsCodeApi();
 
-  let tree = ['a', ['b', []]]; // data[0] to access name and data[1] for chile
+  let tree; // data[0] to access name and data[1] for chile
 
   let selected;
-  let value;
+  let value: Number;
 
   // set the dimensions and margins of the diagram
   var margin = { top: 40, right: 90, bottom: 50, left: 90 },
@@ -140,7 +140,7 @@
 
   onMount(() => updateTree(tree));
   afterUpdate(() => {
-    selected.data[0] = value;
+    selected.data[0] = Number(value);
     updateTree(tree);
     console.log(tree);
   });

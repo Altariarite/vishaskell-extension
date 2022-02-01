@@ -62,7 +62,9 @@ function getWebviewOptions(extensionUri: vscode.Uri): vscode.WebviewOptions {
 		// And restrict the webview to only loading content from our extension's `media` directory.
 		localResourceRoots: [
 			vscode.Uri.joinPath(extensionUri, 'media'),
-			vscode.Uri.joinPath(extensionUri, 'out/compiled')]
+			vscode.Uri.joinPath(extensionUri, 'out/compiled'),
+			// vscode.workspace.workspaceFolders[0].uri
+		]
 	};
 }
 
@@ -238,9 +240,6 @@ class CodingPanel {
 		// // And the uri we use to load this script in the webview
 		const scriptUri = (scriptPathOnDisk).with({ 'scheme': 'vscode-resource' });
 
-		// dep 
-		const depPath = vscode.Uri.joinPath(this._extensionUri, 'media', 'd3.js');
-		const depUri = webview.asWebviewUri(depPath);
 
 		// Local path to css styles
 		const styleResetPath = vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css');
@@ -259,7 +258,9 @@ class CodingPanel {
 
 		// Use a nonce to only allow specific scripts to be run
 		const nonce = getNonce();
-
+		
+		
+		
 		return `<!DOCTYPE html>
 			<html lang="en">
 			<head>
