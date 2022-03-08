@@ -44,6 +44,11 @@
 				"command": "catCoding.refresh",
 				"title": "Refresh Webview",
 				"category": "Cat Coding"
+			},
+			{
+				"command": "catCoding.sendToWebview",
+				"title": "send currently selected variable to webview",
+				"category": "Cat Coding"
 			}
 		]
 	},
