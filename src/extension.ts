@@ -2,7 +2,9 @@ import { posix } from 'path';
 import * as vscode from 'vscode';
 import { showInputBox } from './basicInputs';
 import { getNonce } from './getNonce';
-
+import { spawn } from 'child_process';
+import * as path from 'path';
+import { resolve } from 'dns';
 
 export function activate(context: vscode.ExtensionContext) {
 	// from simple ghc
@@ -50,8 +52,32 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
+	context.subscriptions.push(
+		vscode.commands.registerCommand('catCoding.sendToWebview', async function () {
+			// code to send selected word to webview
+			const editor = vscode.window.activeTextEditor;
+			if (editor) {
+				const range = editor.document.getWordRangeAtPosition(
+					editor.selection.active,
+					/\S+/
+				);
+				//test
+				if (range) {
+					// then you can get the word that's there:
+					const word = editor.document.getText(range); // get the word at the range
+					vscode.window.showInformationMessage("The selected word is " + word);
+					const jsonString = await getEncoding(word);
+					vscode.window.showInformationMessage("The object is " + JSON.parse(jsonString));
+					// send to Webviewew
+					CodingPanel.createOrShow(context.extensionUri);
+					CodingPanel.currentPanel?.selectedWordtoPanel(JSON.parse(jsonString));
+					// or modify the selection if that's really your goal:
+					editor.selection = new vscode.Selection(range.start, range.end);
+				}
+			}
 
-
+		}
+		));
 }
 
 function getWebviewOptions(extensionUri: vscode.Uri): vscode.WebviewOptions {
@@ -66,6 +92,84 @@ function getWebviewOptions(extensionUri: vscode.Uri): vscode.WebviewOptions {
 			// vscode.workspace.workspaceFolders[0].uri
 		]
 	};
+}
+
+async function getEncoding(variableName: string): Promise<string> {
+	//  call the encode function from the haskell script
+	return new Promise(function (resolve, reject) {
+		let outputBuffer = "";
+		if (vscode.workspace.workspaceFolders !== undefined && vscode.window.activeTextEditor) {
+			const filename = doFilename(getActiveUri(), true);
+			const fullPath = vscode.window.activeTextEditor.document.uri.fsPath;
+			const message = `visHaskell: file: ${filename}, path: ${fullPath}`;
+
+			vscode.window.showInformationMessage(message);
+
+			const ls = spawn("ghc", [fullPath, "-e", `encode ${variableName}`]);
+
+			ls.stdout.on('data', (data: any) => {
+				console.log(`stdout: ${data}`);
+				outputBuffer += data;
+			});
+
+			ls.stderr.on('data', (data: any) => {
+				console.error(`stderr: ${data}`);
+				reject(`erroneous data ${data}`);
+			});
+
+			ls.on('close', (code: any) => {
+				const result = JSON.parse(outputBuffer);
+				console.log(`child process exited with code ${code}`);
+				console.log(`outputBuffer is ${outputBuffer}, to json: ${result}`);
+				vscode.window.showInformationMessage(outputBuffer);
+				resolve(outputBuffer);
+			});
+		}
+		else {
+			const message = "visHaskell: Working folder not found, open a folder an try again";
+			vscode.window.showErrorMessage(message);
+			reject();
+		}
+	});
+}
+
+// https://github.com/bradzacher/vscode-copy-filename/blob/0d238db7445c8f7da5e4dea9db05fb7096f5a501/src/extension.ts#L52
+async function showError(message: string): Promise<void> {
+	await vscode.window.showErrorMessage(`Copy filename: ${message}`);
+}
+function showWarning(message: string): void {
+	vscode.window.setStatusBarMessage(`${message}`, 3000);
+}
+function getActiveUri(): Array<vscode.Uri> | null {
+	const activeTextEditor = vscode.window.activeTextEditor;
+	if (typeof activeTextEditor === 'undefined') {
+		return null;
+	}
+	return [activeTextEditor.document.uri];
+}
+
+function doFilename(
+	uris: Array<vscode.Uri> | null,
+	includeExtension: boolean,
+): string {
+	if (uris == null) {
+		return "";
+	}
+
+	const accumulator = uris
+		.map(uri => getFilename(uri, includeExtension))
+		.join('\n');
+	return accumulator;
+}
+
+function getFilename(uri: vscode.Uri, includeExtension: boolean): string {
+	const relative = vscode.workspace.asRelativePath(uri);
+	const parsed = path.parse(relative);
+
+	if (includeExtension) {
+		return parsed.base;
+	}
+	return parsed.name;
 }
 
 async function writeFile(json: JSON) {
@@ -174,14 +278,15 @@ class CodingPanel {
 						writeFile(message.d);
 						return;
 					}
-					case 'load': {
-						vscode.window.showInformationMessage("Pressed Load");
-						readFile(message.d).then(jsonString => {
-							if (jsonString)
-								this._panel.webview.postMessage({ command: 'load', data: JSON.parse(jsonString) })
-						}
-						);
-					}
+					// deprecated load from file
+					// case 'load': {
+					// 	vscode.window.showInformationMessage("Pressed Load");
+					// 	readFile(message.d).then(jsonString => {
+					// 		if (jsonString)
+					// 			this._panel.webview.postMessage({ command: 'load', data: JSON.parse(jsonString) })
+					// 	}
+					// 	);
+					// }
 
 
 
@@ -198,6 +303,10 @@ class CodingPanel {
 		// Send a message to the webview webview.
 		// You can send any JSON serializable data.
 		this._panel.webview.postMessage({ command: 'refactor' });
+	}
+
+	public selectedWordtoPanel(jsonString: string) {
+		this._panel.webview.postMessage({ command: 'load', data: jsonString });
 	}
 
 	public dispose() {
@@ -258,9 +367,9 @@ class CodingPanel {
 
 		// Use a nonce to only allow specific scripts to be run
 		const nonce = getNonce();
-		
-		
-		
+
+
+
 		return `<!DOCTYPE html>
 			<html lang="en">
 			<head>

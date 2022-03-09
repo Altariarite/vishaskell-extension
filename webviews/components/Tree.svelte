@@ -14,8 +14,8 @@
 
   // set the dimensions and margins of the diagram
   var margin = { top: 40, right: 90, bottom: 50, left: 90 },
-    width = 660 - margin.left - margin.right,
-    height = 500 - margin.top - margin.bottom;
+    width = 500 - margin.left - margin.right,
+    height = 300 - margin.top - margin.bottom;
 
   function updateTree(treeData) {
     // declares a tree layout and assigns the size
@@ -131,7 +131,7 @@
     switch (message.command) {
       case 'load':
         console.log('svelte recv message: ', message);
-        tree = message.data;
+        tree = JSON.parse(message.data);
         updateTree(tree);
         console.log('tree', tree);
         break;
@@ -151,7 +151,7 @@
 
 <svelte:window on:message={handleMessage} />
 
-<button on:click={handleLoad}>Load</button>
+<!-- <button on:click={handleLoad}>Load</button> -->
 <button on:click={handleSave}>Save</button>
 
 <style>
