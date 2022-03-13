@@ -10,6 +10,8 @@ import { resolve } from 'dns';
 export function activate(context: vscode.ExtensionContext) {
 	// from simple ghc
 
+	let workspaceUri : vscode.Uri | undefined;
+
 	context.subscriptions.push(
 		vscode.commands.registerCommand('catCoding.start', async () => {
 			// send to Webviewew
@@ -91,7 +93,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 function getWebviewOptions(extensionUri: vscode.Uri, workspaceceUri: vscode.Uri | undefined): vscode.WebviewOptions {
-	if (workspaceceUri) {
+	if (vscode.workspace.workspaceFolders) {
 		return {
 			// Enable javascript in the webview
 			enableScripts: true,
@@ -100,8 +102,7 @@ function getWebviewOptions(extensionUri: vscode.Uri, workspaceceUri: vscode.Uri 
 			localResourceRoots: [
 				vscode.Uri.joinPath(extensionUri, 'media'),
 				vscode.Uri.joinPath(extensionUri, 'out/compiled'),
-				// vscode.workspace.workspaceFolders[0].uri
-				vscode.Uri.joinPath(workspaceceUri, 'interface')
+				vscode.workspace.workspaceFolders[0].uri
 			]
 		};
 	}
@@ -407,56 +408,62 @@ class CodingPanel {
 
 	private _getHtmlForWebview(webview: vscode.Webview) {
 		// // Local path to main script run in the webview
-		const scriptPathOnDisk = vscode.Uri.joinPath(this._extensionUri, 'out/compiled', 'HelloWorld.js');
-
-		// // And the uri we use to load this script in the webview
-		const scriptUri = (scriptPathOnDisk).with({ 'scheme': 'vscode-resource' });
-
-
-		// Local path to css styles
-		const styleResetPath = vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css');
-		const stylesPathMainPath = vscode.Uri.joinPath(this._extensionUri, 'media', 'vscode.css');
+		// const scriptPathOnDisk = vscode.Uri.joinPath(this._extensionUri, 'out/compiled', 'HelloWorld.js');
+		if (this._workspaceUri) {
+			const scriptPathOnDisk = vscode.Uri.joinPath(this._workspaceUri);
 
 
-
-		// Uri to load styles into webview
-		const stylesResetUri = webview.asWebviewUri(styleResetPath);
-		const stylesVSCodeUri = webview.asWebviewUri(stylesPathMainPath);
+			// // And the uri we use to load this script in the webview
+			const scriptUri = (scriptPathOnDisk).with({ 'scheme': 'vscode-resource' });
 
 
-		const stylesMainUri = webview.asWebviewUri(
-			vscode.Uri.joinPath(this._extensionUri, "out/compiled", "HelloWorld.css")
-		);
-
-		// Use a nonce to only allow specific scripts to be run
-		const nonce = getNonce();
+			// Local path to css styles
+			const styleResetPath = vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css');
+			const stylesPathMainPath = vscode.Uri.joinPath(this._extensionUri, 'media', 'vscode.css');
 
 
 
-		return `<!DOCTYPE html>
-			<html lang="en">
-			<head>
-				<meta charset="UTF-8">
+			// Uri to load styles into webview
+			const stylesResetUri = webview.asWebviewUri(styleResetPath);
+			const stylesVSCodeUri = webview.asWebviewUri(stylesPathMainPath);
 
-				<!--
-					Use a content security policy to only allow loading images from https or from our extension directory,
-					and only allow scripts that have a specific nonce.
-				-->
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
-				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-				<link href="${stylesResetUri}" rel="stylesheet">
-				<link href="${stylesVSCodeUri}" rel="stylesheet">
-				<link href="${stylesMainUri}" rel="stylesheet">
-				
 
-				<title>Visual Coding</title>
-			</head>
-			<body>
+			const stylesMainUri = webview.asWebviewUri(
+				vscode.Uri.joinPath(this._extensionUri, "out/compiled", "HelloWorld.css")
+			);
+
+			// Use a nonce to only allow specific scripts to be run
+			const nonce = getNonce();
+
+
+
+			return `<!DOCTYPE html>
+				<html lang="en">
+				<head>
+					<meta charset="UTF-8">
+
+					<!--
+						Use a content security policy to only allow loading images from https or from our extension directory,
+						and only allow scripts that have a specific nonce.
+					-->
+					<!--<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';"> -->
+					<meta name="viewport" content="width=device-width, initial-scale=1.0">
+					<link href="${stylesResetUri}" rel="stylesheet">
+					<link href="${stylesVSCodeUri}" rel="stylesheet">
+					<link href="${stylesMainUri}" rel="stylesheet">
 					
-			</body>
-			
-			<script src="${scriptUri}" nonce="${nonce}">
-			</html>`;
+
+					<title>Visual Coding</title>
+				</head>
+				<body>
+						
+				</body>
+				
+				<script src="${scriptUri}" nonce="${nonce}">
+				</html>`;
+		}
+		return "<title>No Interface found</title>";
 	}
+
 }
 
