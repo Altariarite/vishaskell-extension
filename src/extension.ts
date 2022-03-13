@@ -4,14 +4,17 @@ import { showInputBox } from './basicInputs';
 import { getNonce } from './getNonce';
 import { spawn } from 'child_process';
 import * as path from 'path';
+import { quickOpen } from './quickPick';
 import { resolve } from 'dns';
 
 export function activate(context: vscode.ExtensionContext) {
 	// from simple ghc
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('catCoding.start', () => {
-			CodingPanel.createOrShow(context.extensionUri);
+		vscode.commands.registerCommand('catCoding.start', async () => {
+			// send to Webviewew
+			const workspaceUri = await quickOpen();
+			CodingPanel.createOrShow(context.extensionUri, workspaceUri);
 		})
 	);
 
@@ -42,12 +45,12 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('catCoding.refresh', () => {
+		vscode.commands.registerCommand('catCoding.refresh', async () => {
 			if (CodingPanel.currentPanel) {
 				CodingPanel.currentPanel.dispose();
 			}
-
-			CodingPanel.createOrShow(context.extensionUri);
+			const workspaceceUri = await quickOpen();
+			CodingPanel.createOrShow(context.extensionUri, workspaceceUri);
 			setTimeout(() => vscode.commands.executeCommand("workbench.action.webview.openDeveloperTools"), 500);
 		})
 	);
@@ -61,15 +64,22 @@ export function activate(context: vscode.ExtensionContext) {
 					editor.selection.active,
 					/\S+/
 				);
+				const wholeDef = editor.selection.active.line;
+				// get the range of the current line, I don't think there is an easier way in the api
+				const currentLineRange = editor.document.lineAt(editor.selection.active.line).range;
+				// editor.edit(edit => edit.replace(currentLineRange, "my new text"));
 				//test
-				if (range) {
+				if (range && currentLineRange) {
 					// then you can get the word that's there:
 					const word = editor.document.getText(range); // get the word at the range
 					vscode.window.showInformationMessage("The selected word is " + word);
+					const paren = editor.document.getText(currentLineRange); // get the word at the range
+					vscode.window.showInformationMessage("The definition is " + paren);
 					const jsonString = await getEncoding(word);
 					vscode.window.showInformationMessage("The object is " + JSON.parse(jsonString));
 					// send to Webviewew
-					CodingPanel.createOrShow(context.extensionUri);
+					const workspaceUri = await quickOpen();
+					CodingPanel.createOrShow(context.extensionUri, workspaceUri);
 					CodingPanel.currentPanel?.selectedWordtoPanel(JSON.parse(jsonString));
 					// or modify the selection if that's really your goal:
 					editor.selection = new vscode.Selection(range.start, range.end);
@@ -80,7 +90,21 @@ export function activate(context: vscode.ExtensionContext) {
 		));
 }
 
-function getWebviewOptions(extensionUri: vscode.Uri): vscode.WebviewOptions {
+function getWebviewOptions(extensionUri: vscode.Uri, workspaceceUri: vscode.Uri | undefined): vscode.WebviewOptions {
+	if (workspaceceUri) {
+		return {
+			// Enable javascript in the webview
+			enableScripts: true,
+
+			// And restrict the webview to only loading content from our extension's `media` directory.
+			localResourceRoots: [
+				vscode.Uri.joinPath(extensionUri, 'media'),
+				vscode.Uri.joinPath(extensionUri, 'out/compiled'),
+				// vscode.workspace.workspaceFolders[0].uri
+				vscode.Uri.joinPath(workspaceceUri, 'interface')
+			]
+		};
+	}
 	return {
 		// Enable javascript in the webview
 		enableScripts: true,
@@ -106,6 +130,44 @@ async function getEncoding(variableName: string): Promise<string> {
 			vscode.window.showInformationMessage(message);
 
 			const ls = spawn("ghc", [fullPath, "-e", `encode ${variableName}`]);
+
+			ls.stdout.on('data', (data: any) => {
+				console.log(`stdout: ${data}`);
+				outputBuffer += data;
+			});
+
+			ls.stderr.on('data', (data: any) => {
+				console.error(`stderr: ${data}`);
+				reject(`erroneous data ${data}`);
+			});
+
+			ls.on('close', (code: any) => {
+				const result = JSON.parse(outputBuffer);
+				console.log(`child process exited with code ${code}`);
+				console.log(`outputBuffer is ${outputBuffer}, to json: ${result}`);
+				vscode.window.showInformationMessage(outputBuffer);
+				resolve(outputBuffer);
+			});
+		}
+		else {
+			const message = "visHaskell: Working folder not found, open a folder an try again";
+			vscode.window.showErrorMessage(message);
+			reject();
+		}
+	});
+}
+
+async function toHaskellCode(data: JSON) {
+	return new Promise(function (resolve, reject) {
+		let outputBuffer = "";
+		if (vscode.workspace.workspaceFolders !== undefined && vscode.window.activeTextEditor) {
+			const filename = doFilename(getActiveUri(), true);
+			const fullPath = vscode.window.activeTextEditor.document.uri.fsPath;
+			const message = `visHaskell: file: ${filename}, path: ${fullPath}`;
+
+			vscode.window.showInformationMessage(message);
+
+			const ls = spawn("ghc", [fullPath, "-e", `decode ${data}`]);
 
 			ls.stdout.on('data', (data: any) => {
 				console.log(`stdout: ${data}`);
@@ -216,16 +278,17 @@ class CodingPanel {
 
 	private readonly _panel: vscode.WebviewPanel;
 	private readonly _extensionUri: vscode.Uri;
+	private readonly _workspaceUri: vscode.Uri | undefined;
 	private _disposables: vscode.Disposable[] = [];
 
-	public static createOrShow(extensionUri: vscode.Uri) {
-		const column = vscode.window.activeTextEditor
-			? vscode.window.activeTextEditor.viewColumn
-			: undefined;
+	public static createOrShow(extensionUri: vscode.Uri, workspaceceUri: vscode.Uri | undefined) {
+		// const column = vscode.window.activeTextEditor
+		// 	? vscode.window.activeTextEditor.viewColumn
+		// 	: undefined;
 
 		// If we already have a panel, show it.
 		if (CodingPanel.currentPanel) {
-			CodingPanel.currentPanel._panel.reveal(column);
+			CodingPanel.currentPanel._panel.reveal(vscode.ViewColumn.Two);
 			return;
 		}
 
@@ -233,21 +296,21 @@ class CodingPanel {
 		const panel = vscode.window.createWebviewPanel(
 			CodingPanel.viewType,
 			'Coding',
-			column || vscode.ViewColumn.One,
-			getWebviewOptions(extensionUri),
+			vscode.ViewColumn.Two,
+			getWebviewOptions(extensionUri, workspaceceUri),
 		);
 
-		CodingPanel.currentPanel = new CodingPanel(panel, extensionUri);
+		CodingPanel.currentPanel = new CodingPanel(panel, extensionUri, workspaceceUri);
 	}
 
-	public static revive(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
-		CodingPanel.currentPanel = new CodingPanel(panel, extensionUri);
+	public static revive(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, workspaceceUri: vscode.Uri) {
+		CodingPanel.currentPanel = new CodingPanel(panel, extensionUri, workspaceceUri);
 	}
 
-	private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+	private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, workspaceUri: vscode.Uri | undefined) {
 		this._panel = panel;
 		this._extensionUri = extensionUri;
-
+		this._workspaceUri = workspaceUri;
 		// Set the webview's initial html content
 		this._update();
 
@@ -256,15 +319,15 @@ class CodingPanel {
 		this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 
 		// Update the content based on view changes
-		this._panel.onDidChangeViewState(
-			e => {
-				if (this._panel.visible) {
-					this._update();
-				}
-			},
-			null,
-			this._disposables
-		);
+		// this._panel.onDidChangeViewState(
+		// 	e => {
+		// 		if (this._panel.visible) {
+		// 			this._update();
+		// 		}
+		// 	},
+		// 	null,
+		// 	this._disposables
+		// );
 
 		// Handle messages from the webview
 		this._panel.webview.onDidReceiveMessage(
