@@ -10,13 +10,12 @@ import { resolve } from 'dns';
 export function activate(context: vscode.ExtensionContext) {
 	// from simple ghc
 
-	let workspaceUri : vscode.Uri | undefined;
+	let workspaceUri: vscode.Uri | undefined;
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('catCoding.start', async () => {
-			// send to Webviewew
-			const workspaceUri = await quickOpen();
-			CodingPanel.createOrShow(context.extensionUri, workspaceUri);
+
+			CodingPanel.createOrShow(context.extensionUri);
 		})
 	);
 
@@ -51,8 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
 			if (CodingPanel.currentPanel) {
 				CodingPanel.currentPanel.dispose();
 			}
-			const workspaceceUri = await quickOpen();
-			CodingPanel.createOrShow(context.extensionUri, workspaceceUri);
+			CodingPanel.createOrShow(context.extensionUri);
 			setTimeout(() => vscode.commands.executeCommand("workbench.action.webview.openDeveloperTools"), 500);
 		})
 	);
@@ -80,8 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 					const jsonString = await getEncoding(word);
 					vscode.window.showInformationMessage("The object is " + JSON.parse(jsonString));
 					// send to Webviewew
-					const workspaceUri = await quickOpen();
-					CodingPanel.createOrShow(context.extensionUri, workspaceUri);
+					CodingPanel.createOrShow(context.extensionUri);
 					CodingPanel.currentPanel?.selectedWordtoPanel(JSON.parse(jsonString));
 					// or modify the selection if that's really your goal:
 					editor.selection = new vscode.Selection(range.start, range.end);
@@ -282,7 +279,7 @@ class CodingPanel {
 	private readonly _workspaceUri: vscode.Uri | undefined;
 	private _disposables: vscode.Disposable[] = [];
 
-	public static createOrShow(extensionUri: vscode.Uri, workspaceceUri: vscode.Uri | undefined) {
+	public static async createOrShow(extensionUri: vscode.Uri) {
 		// const column = vscode.window.activeTextEditor
 		// 	? vscode.window.activeTextEditor.viewColumn
 		// 	: undefined;
@@ -294,14 +291,15 @@ class CodingPanel {
 		}
 
 		// Otherwise, create a new panel.
+		const workspaceUri = await quickOpen();
 		const panel = vscode.window.createWebviewPanel(
 			CodingPanel.viewType,
 			'Coding',
 			vscode.ViewColumn.Two,
-			getWebviewOptions(extensionUri, workspaceceUri),
+			getWebviewOptions(extensionUri, workspaceUri),
 		);
 
-		CodingPanel.currentPanel = new CodingPanel(panel, extensionUri, workspaceceUri);
+		CodingPanel.currentPanel = new CodingPanel(panel, extensionUri, workspaceUri);
 	}
 
 	public static revive(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, workspaceceUri: vscode.Uri) {
