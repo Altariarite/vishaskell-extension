@@ -2,7 +2,8 @@ import { posix } from 'path';
 import * as vscode from 'vscode';
 import { showInputBox } from './basicInputs';
 import { getNonce } from './getNonce';
-import { spawn } from 'child_process';
+import { promisify } from 'util';
+import { execFile, spawn } from 'child_process';
 import * as path from 'path';
 import { quickOpen } from './quickPick';
 import { resolve } from 'dns';
@@ -59,35 +60,54 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand('catCoding.sendToWebview', async function () {
 			// code to send selected word to webview
 			const editor = vscode.window.activeTextEditor;
+
+
 			if (editor) {
-				const range = editor.document.getWordRangeAtPosition(
-					editor.selection.active,
-					/\S+/
-				);
-				const wholeDef = editor.selection.active.line;
-				// get the range of the current line, I don't think there is an easier way in the api
-				const currentLineRange = editor.document.lineAt(editor.selection.active.line).range;
-				// editor.edit(edit => edit.replace(currentLineRange, "my new text"));
-				//test
-				if (range && currentLineRange) {
-					// then you can get the word that's there:
-					const word = editor.document.getText(range); // get the word at the range
-					vscode.window.showInformationMessage("The selected word is " + word);
-					const paren = editor.document.getText(currentLineRange); // get the word at the range
-					vscode.window.showInformationMessage("The definition is " + paren);
-					const jsonString = await getEncoding(word);
-					vscode.window.showInformationMessage("The object is " + JSON.parse(jsonString));
-					// send to Webviewew
-					CodingPanel.createOrShow(context.extensionUri);
-					CodingPanel.currentPanel?.selectedWordtoPanel(JSON.parse(jsonString));
-					// or modify the selection if that's really your goal:
-					editor.selection = new vscode.Selection(range.start, range.end);
-				}
+				const document = editor.document;
+				const selection = editor.selection;
+
+				// Get the word within the selection
+				const word = document.getText(selection);
+				const jsonString = await getEncoding(word);
+				vscode.window.showInformationMessage("The object is " + JSON.parse(jsonString));
+				// send to Webviewew
+				CodingPanel.createOrShow(context.extensionUri);
+				CodingPanel.currentPanel?.selectedWordtoPanel(jsonString);
+				// const changed = word.split('').reverse().join('');
+				// editor.edit(editBuilder => {
+				// 	editBuilder.replace(selection, reversed);
+				// });
 			}
+			// if (editor) {
+			// 	const range = editor.document.getWordRangeAtPosition(
+			// 		editor.selection.active,
+			// 		/\S+/
+			// 	);
+			// 	const wholeDef = editor.selection.active.line;
+			// 	// get the range of the current line, I don't think there is an easier way in the api
+			// 	const currentLineRange = editor.document.lineAt(editor.selection.active.line).range;
+			// 	// editor.edit(edit => edit.replace(currentLineRange, "my new text"));
+			// 	//test
+			// 	if (range && currentLineRange) {
+			// 		// then you can get the word that's there:
+			// 		const word = editor.document.getText(range); // get the word at the range
+			// 		vscode.window.showInformationMessage("The selected word is " + word);
+			// 		const paren = editor.document.getText(currentLineRange); // get the word at the range
+			// 		vscode.window.showInformationMessage("The definition is " + paren);
+			// 		const jsonString = await getEncoding(word);
+			// 		vscode.window.showInformationMessage("The object is " + JSON.parse(jsonString));
+			// 		// send to Webviewew
+			// 		CodingPanel.createOrShow(context.extensionUri);
+			// 		CodingPanel.currentPanel?.selectedWordtoPanel(JSON.parse(jsonString));
+			// 		// or modify the selection if that's really your goal:
+			// 		editor.selection = new vscode.Selection(range.start, range.end);
+			// 	}
+			// }
 
 		}
 		));
 }
+
 
 function getWebviewOptions(extensionUri: vscode.Uri, workspaceceUri: vscode.Uri | undefined): vscode.WebviewOptions {
 	if (vscode.workspace.workspaceFolders) {
@@ -155,17 +175,17 @@ async function getEncoding(variableName: string): Promise<string> {
 	});
 }
 
-async function toHaskellCode(data: JSON) {
+async function toHaskellCode(command: string): Promise<string> {
 	return new Promise(function (resolve, reject) {
 		let outputBuffer = "";
-		if (vscode.workspace.workspaceFolders !== undefined && vscode.window.activeTextEditor) {
+		if (vscode.window.activeTextEditor) {
 			const filename = doFilename(getActiveUri(), true);
 			const fullPath = vscode.window.activeTextEditor.document.uri.fsPath;
-			const message = `visHaskell: file: ${filename}, path: ${fullPath}`;
+			const message = `visHaskell: file: ${filename}, path: ${fullPath}, command: ${command}`;
 
 			vscode.window.showInformationMessage(message);
 
-			const ls = spawn("ghc", [fullPath, "-e", `decode ${data}`]);
+			const ls = spawn("ghc", [fullPath, "-XOverloadedStrings", "-e", command]);
 
 			ls.stdout.on('data', (data: any) => {
 				console.log(`stdout: ${data}`);
@@ -191,6 +211,24 @@ async function toHaskellCode(data: JSON) {
 			reject();
 		}
 	});
+}
+
+async function getHaskellCode(f: string) {
+	// Exec output contains both stderr and stdout outputs
+	if (vscode.window.visibleTextEditors[0]) {
+		const filename = doFilename(getActiveUri(), true);
+		const fullPath = vscode.window.visibleTextEditors[0].document.uri.fsPath;
+		const message = `visHaskell: file: ${filename}, path: ${fullPath}, command: ${f}`;
+
+		vscode.window.showInformationMessage(message);
+		const exec = promisify(execFile);
+		const functionOutput = await exec("ghc", [fullPath, "-XOverloadedStrings", "-e", f]);
+		return functionOutput.stdout.trim();
+	} else {
+		const message = "visHaskell: Working folder not found, open a folder an try again";
+		vscode.window.showErrorMessage(message);
+		return "";
+	}
 }
 
 // https://github.com/bradzacher/vscode-copy-filename/blob/0d238db7445c8f7da5e4dea9db05fb7096f5a501/src/extension.ts#L52
@@ -330,14 +368,35 @@ class CodingPanel {
 
 		// Handle messages from the webview
 		this._panel.webview.onDidReceiveMessage(
-			message => {
+			async message => {
 				switch (message.command) {
 					case 'alert':
 						vscode.window.showErrorMessage(message.text);
 						return;
 					case 'save': {
-						vscode.window.showInformationMessage("Pressed save:" + message.d);
-						writeFile(message.d);
+						vscode.window.showInformationMessage("Pressed save:" + message.f + message.d);
+						const editor = vscode.window.visibleTextEditors[0];
+						if (editor) {
+							vscode.window.showInformationMessage("find the editor");
+							const document = editor.document;
+							const selection = editor.selection;
+
+							// Get the word within the selection
+							const func = message.f;
+							const codeString: string = await getHaskellCode(func);
+							vscode.window.showInformationMessage(codeString);
+							if (codeString === "Nothing") {
+								vscode.window.showInformationMessage("Got Nothing, check the evaluation function");
+							} else {
+								vscode.window.showInformationMessage("The code is " + codeString);
+								const result = codeString.split("Just").pop();
+								const finalString: string = result ? result : "";
+								editor.edit(editBuilder => {
+									editBuilder.replace(selection, finalString);
+								});
+							}
+
+						}
 						return;
 					}
 					// deprecated load from file
