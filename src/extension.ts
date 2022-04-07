@@ -72,7 +72,7 @@ export function activate(context: vscode.ExtensionContext) {
 				vscode.window.showInformationMessage("The object is " + JSON.parse(jsonString));
 				// send to Webviewew
 				CodingPanel.createOrShow(context.extensionUri);
-				CodingPanel.currentPanel?.selectedWordtoPanel(jsonString);
+				CodingPanel.currentPanel?.selectedWordtoPanel(JSON.parse(jsonString));
 				// const changed = word.split('').reverse().join('');
 				// editor.edit(editBuilder => {
 				// 	editBuilder.replace(selection, reversed);

@@ -1,28 +1,25 @@
 <script lang="ts">
-  import { afterUpdate, beforeUpdate, onMount } from 'svelte';
-  import Input from './Input.svelte';
-
+  import { afterUpdate, onMount } from 'svelte';
   import * as d3 from 'd3';
-  import { dataset_dev } from 'svelte/internal';
-  // change something
+
   const vscode = acquireVsCodeApi();
 
-  let tree; // data[0] to access name and data[1] for chile
+  let tree; // data[0] to access name and data[1] for children
+  let selected; // which node is selected currently
+  let value: Number; // value in the text box
 
-  let selected;
-  let value: Number;
-
-  // set the dimensions and margins of the diagram
-  var margin = { top: 40, right: 90, bottom: 50, left: 90 },
-    width = 500 - margin.left - margin.right,
-    height = 300 - margin.top - margin.bottom;
-
+  // Render object to an SVG tree display
   function updateTree(treeData) {
+    // set the dimensions and margins of the diagram
+    let margin = { top: 40, right: 90, bottom: 50, left: 90 },
+      width = 500 - margin.left - margin.right,
+      height = 300 - margin.top - margin.bottom;
+
     // declares a tree layout and assigns the size
-    var treemap = d3.tree().size([width, height]);
+    let treemap = d3.tree().size([width, height]);
 
     //  assigns the data to a hierarchy using parent-child relationships
-    var nodes = d3.hierarchy(treeData, (d) =>
+    let nodes = d3.hierarchy(treeData, (d) =>
       Array.isArray(d) ? d[1] : undefined
     );
 
@@ -35,7 +32,7 @@
     // appends a 'group' element to 'svg'
     // moves the 'group' element to the top left margin
 
-    var svg = d3
+    let svg = d3
         .select('body')
         .append('svg')
         .attr('width', width + margin.left + margin.right)
@@ -45,7 +42,7 @@
         .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
 
     // adds the links between the nodes
-    var link = g
+    let link = g
       .selectAll('.link')
       .data(nodes.descendants().slice(1))
       .enter()
@@ -73,7 +70,7 @@
       });
 
     // adds each node as a group
-    var node = g
+    let node = g
       .selectAll('.node')
       .data(nodes.descendants())
       .enter()
@@ -103,6 +100,8 @@
     node.on('click', function (e, d) {
       console.log(d);
       console.log(d.data);
+      // d is a data structure of D3
+      // d.data contains a subtree with the selected node as the root
       value = d.data[0];
       selected = d;
     });
@@ -113,19 +112,11 @@
     vscode.postMessage({
       command: 'save',
       // fill in original value
-      d: tree,
+      f: `decode ${JSON.stringify(JSON.stringify(tree))} :: Maybe (Tree Int)`,
     });
   }
 
-  function handleLoad() {
-    vscode.postMessage({
-      command: 'load',
-      // fill in original value
-      d: tree,
-    });
-  }
-
-  function handleMessage(event: any) {
+  function handleLoad(event: any) {
     const message = event.data; // The JSON data our extension sent
     console.log('message recved', message);
     switch (message.command) {
@@ -149,9 +140,8 @@
 <h1>Selected: {selected ? selected.data[0] : 'nothing'}</h1>
 <input bind:value />
 
-<svelte:window on:message={handleMessage} />
+<svelte:window on:message={handleLoad} />
 
-<!-- <button on:click={handleLoad}>Load</button> -->
 <button on:click={handleSave}>Save</button>
 
 <style>
